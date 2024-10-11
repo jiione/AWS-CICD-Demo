@@ -33,6 +33,8 @@
      
 ### 2. Jenkins
    - **시나리오**: Jenkins는 코드를 클론받아 빌드하고, JAR 파일을 생성한 후 S3에 업로드와 EC2에 배포 합니다.
+
+#### 파이프라인
  ```bash
       stage('Clone Repository') {
          steps {
@@ -77,6 +79,8 @@
          }
       }
 ```
+![image](https://github.com/user-attachments/assets/abadcd23-a7d3-411e-8874-0086ecc8ad82)
+
 ### 3. S3
    - **시나리오**: Jenkins가 빌드한 JAR 파일을 AWS S3에 업로드하여 EC2에서 액세스할 수 있도록 합니다.
 ### 4. EC2
