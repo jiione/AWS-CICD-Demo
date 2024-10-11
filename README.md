@@ -1,5 +1,14 @@
 # AWS-CICD 구축
 
+이 프로젝트에서는 Spring Boot 애플리케이션을 위한 CI/CD 파이프라인을 두 가지 방법으로 구축했습니다:
+
+1. 🐳 **Jenkins와 Docker를 사용한 방법**: 
+   이 방법은 Jenkins를 사용하여 빌드 및 테스트 과정을 자동화하고, Docker를 이용해 애플리케이션을 컨테이너화하여 배포합니다. Watchtower를 사용하여 지속적인 업데이트를 수행합니다.
+
+2. 🚀 **Jenkins와 직접 EC2 배포 방법**: 
+   이 방법은 Jenkins를 사용하여 빌드 및 테스트를 수행한 후, 생성된 JAR 파일을 직접 EC2 인스턴스로 전송하여 실행합니다.
+
+아래에서는 이 두 가지 방법에 대해 자세히 설명합니다.
 
 ## 참여 인원 👨‍👨‍👧‍👧
 | <img src="https://avatars.githubusercontent.com/u/83341978?v=4" width="150" height="150"/> | <img src="https://avatars.githubusercontent.com/u/129728196?v=4" width="150" height="150"/> | <img src="https://avatars.githubusercontent.com/u/104816148?v=4" width="150" height="150"/> | <img src="https://avatars.githubusercontent.com/u/86452494?v=4" width="150" height="150"/> |
@@ -11,18 +20,6 @@
 # AWS-CICD-Demo
 ![image](https://github.com/user-attachments/assets/f39f6386-296a-4182-a873-59287d65e10f)
 
-
-## 📋 목차
-
-1. [프로젝트 개요](#-프로젝트-개요)
-2. [사전 요구 사항](#-사전-요구-사항)
-3. [Jenkins 파이프라인 구성](#-jenkins-파이프라인-구성)
-4. [Dockerfile 작성](#-dockerfile-작성)
-5. [Jenkins 파이프라인 스크립트](#-jenkins-파이프라인-스크립트)
-6. [Watchtower 설정](#-watchtower-설정)
-7. [애플리케이션 배포](#-애플리케이션-배포)
-8. [문제 해결](#-문제-해결)
-9. [향후 개선 사항](#-향후-개선-사항)
 
 ## 🎯 프로젝트 개요
 
@@ -190,6 +187,80 @@ docker run -d --name spring-app -p 80:80 chinarong2/spring-app:latest
 ![image](https://github.com/user-attachments/assets/ca828a05-8ade-4f7b-a8a3-44881d030e60)
 ![image](https://github.com/user-attachments/assets/86912d20-6c50-4cf4-8d2f-e63a8c8a8814)
 
+## 🚀 Jenkins와 직접 EC2 배포 방법
+
+이 방법은 Docker를 사용하지 않고 직접 EC2 인스턴스에 애플리케이션을 배포합니다.
+
+### Jenkins 파이프라인 스크립트 (EC2 직접 배포)
+
+```groovy
+pipeline {
+    agent any
+    
+    environment {
+        EC2_USER = 'ubuntu'
+        EC2_HOST = ''
+        KEY_FILE = '/var/jenkins_home/.ssh/my-key.pem'
+    }
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main', url: 'https://github.com/jiione/AWS-CICD-Demo.git'
+            }
+        }
+        
+        stage('Set Permissions') {
+            steps {
+                sh 'chmod +x ./gradlew'
+            }
+        }
+        stage('Build JAR') {
+            steps {
+                sh './gradlew clean build'
+            }
+        }
+        
+        stage('Copy JAR to EC2') {
+            steps {
+                sh '''
+                scp -o StrictHostKeyChecking=no -i ${KEY_FILE} build/libs/*.jar ${EC2_USER}@${EC2_HOST}:/tmp/
+                '''
+            }
+        }
+    
+        stage('Run JAR on EC2') {
+            steps {
+                sh '''
+                ssh -o StrictHostKeyChecking=no -i ${KEY_FILE} ${EC2_USER}@${EC2_HOST} "nohup java -jar /tmp/*.jar &"
+                '''
+            }
+        }
+    }
+}
+```
+
+### EC2 배포 방법 설정
+
+1. EC2 인스턴스에 Java를 설치합니다:
+   ```bash
+   sudo apt update && sudo apt install openjdk-17-jdk -y
+   ```
+
+2. Jenkins에 EC2 인스턴스의 SSH 키를 등록합니다.
+
+3. Jenkins 파이프라인 설정에서 위의 스크립트를 사용합니다.
+
+4. 파이프라인을 실행하면 JAR 파일이 EC2로 전송되고 실행됩니다.
+
+### EC2 직접 배포 방법의 장단점
+
+장점:
+- Docker 없이 간단한 구성
+- 리소스 사용량이 상대적으로 적음
+
+단점:
+- 배포 롤백이 어려움
+- 환경 일관성 유지가 어려울 수 있음
 
 ## 🔍 문제 해결
 
@@ -245,5 +316,3 @@ docker run -d --name spring-app -p 80:80 chinarong2/spring-app:latest
 - 📊 모니터링 및 로깅 개선
 - 🔐 보안 강화
 - 🔧 다중 환경 (개발, 스테이징, 프로덕션) 설정
-
-     
