@@ -9,7 +9,7 @@
 
 --- 
 # AWS-CICD-Demo
-![image](https://github.com/user-attachments/assets/e4a2d819-44b5-4a84-b859-3312a665bcca)
+![image](https://github.com/user-attachments/assets/f39f6386-296a-4182-a873-59287d65e10f)
 
 
 ## 목차
@@ -30,24 +30,56 @@
 ## 아키텍처 구성 요소 및 과정
 ### 1. Docker
    - **시나리오**: Jenkins는 Docker 컨테이너 내에서 실행되며, 애플리케이션을 독립적이고 일관된 환경에서 빌드합니다.
-```bash
-    stage('Clone Repository') {
-          steps {
-              git branch: 'main', url: 'it'
-          }
-    }
-```
+     
 ### 2. Jenkins
-   - **시나리오**: Jenkins는 코드를 빌드하고, JAR 파일을 생성한 후 S3에 업로드와 EC2에 배포 합니다.
+   - **시나리오**: Jenkins는 코드를 클론받아 빌드하고, JAR 파일을 생성한 후 S3에 업로드와 EC2에 배포 합니다.
+ ```bash
+      stage('Clone Repository') {
+         steps {
+             git branch: 'main', url: 'https://github.com/jiione/AWS-CICD-Demo.git'
+         }
+      }
+
+      stage('Build') {
+         steps {
+             dir('.') {                   
+                 sh 'chmod +x gradlew'                    
+                 sh './gradlew clean build -x test'
+                 sh 'echo $WORKSPACE'
+             }
+         }
+      }
+
+      stage('Upload to S3') {
+         steps {
+             script {
+                 // AWS CLI를 통해 JAR 파일을 S3 버킷에 업로드
+                 sh '''
+                     aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                     aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                     aws s3 cp $WORK_SPACE/SpringApp-0.0.1-SNAPSHOT.jar s3://$S3_BUCKET_NAME/$S3_TARGET_PATH
+                 '''
+             }
+         }
+      }
+
+      stage('Deploy to EC2') {
+         steps {
+            script {
+               // S3에서 JAR 파일 다운로드 및 애플리케이션 실행
+               sh '''
+                  ssh -i $EC2_KEY_PATH $EC2_USER@$EC2_HOST '
+                      aws s3 cp s3://$S3_BUCKET_NAME/SpringApp-0.0.1-SNAPSHOT.jar /home/ubuntu/
+                      nohup java -jar /home/ubuntu/SpringApp-0.0.1-SNAPSHOT.jar > /dev/null 2>&1 &
+                  '
+               '''
+            }
+         }
+      }
+```
 ### 3. S3
    - **시나리오**: Jenkins가 빌드한 JAR 파일을 AWS S3에 업로드하여 EC2에서 액세스할 수 있도록 합니다.
 ### 4. EC2
    - **시나리오**: EC2 인스턴스는 S3에 저장된 JAR 파일을 다운로드하여 애플리케이션을 실행합니다.
    - **명령어**:
-     ```bash
-     // EC2에서 S3로부터 JAR 파일 다운로드
-     aws s3 cp s3://your-bucket-name/SpringApp-0.0.1-SNAPSHOT.jar /home/ubuntu/
-
-     // 애플리케이션을 백그라운드에서 실행
-     nohup java -jar /home/ubuntu/SpringApp-0.0.1-SNAPSHOT.jar > /dev/null 2>&1 &
-     ```
+     
